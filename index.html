@@ -1089,33 +1089,44 @@ function onBallLanded(b) {
 }
 
 function showMysteryReveal(slot, baseMult, revealedMult) {
-  // Position popup above the slot
-  const canvasRect = canvas.getBoundingClientRect();
-  const scaleX = canvasRect.width / cW();
-  const scaleY = canvasRect.height / cH();
-  const px = canvasRect.left + slot.x * scaleX;
-  const py = canvasRect.top  + slot.y * scaleY - 60;
+  const existing = document.getElementById('mystery-reveal-popup');
+  if (existing) existing.remove();
 
   const el = document.createElement('div');
+  el.id = 'mystery-reveal-popup';
   el.className = 'mystery-reveal';
-  el.style.left = px + 'px';
-  el.style.top  = py + 'px';
-  el.style.transform = 'translateX(-50%)';
+  el.style.cssText = `
+    position: fixed;
+    top: 40%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 250;
+    pointer-events: none;
+    text-align: center;
+    background: #0d0d22;
+    border: 1px solid rgba(180,180,255,0.4);
+    border-radius: 14px;
+    padding: 16px 28px;
+    box-shadow: 0 0 30px rgba(150,150,255,0.15);
+  `;
 
   const factor = revealedMult / baseMult;
-  const color = factor >= 1.5 ? '#ffd700' : factor >= 1 ? '#ffffff' : '#888';
-  const label = factor >= 2 ? '🔥 JACKPOT ✦' : factor >= 1.5 ? '✦ LUCKY ✦' : factor >= 1 ? '✦' : '✦';
+  const color  = factor >= 2 ? '#ffd700' : factor >= 1.5 ? '#ffffff' : factor >= 1 ? '#c8c8c8' : '#666';
+  const label  = factor >= 2 ? '🔥 JACKPOT ✦' : factor >= 1.5 ? '✦ LUCKY ✦' : factor >= 1 ? '✦ MYSTERY ✦' : '✦ MYSTERY ✦';
 
   el.innerHTML = `
-    <div class="mystery-label">${label}</div>
-    <div class="mystery-mult" style="color:${color}">×${revealedMult.toFixed(2)}</div>
+    <div class="mystery-label" style="font-size:0.6rem;letter-spacing:0.25em;color:#aaa;text-transform:uppercase;margin-bottom:6px;">${label}</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:600;color:${color};line-height:1;">×${revealedMult.toFixed(2)}</div>
+    <div style="font-family:'Space Mono',monospace;font-size:0.7rem;color:#666;margin-top:4px;letter-spacing:0.1em;">base ×${baseMult.toFixed(2)}</div>
   `;
   document.body.appendChild(el);
 
   setTimeout(() => {
-    el.classList.add('fade-out');
-    setTimeout(() => el.remove(), 500);
-  }, 1800);
+    el.style.transition = 'opacity 0.4s, transform 0.4s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(-50%) translateY(-20px) scale(0.9)';
+    setTimeout(() => el.remove(), 450);
+  }, 2000);
 }
 
 function showBigWin(mult, amount) {
@@ -1171,14 +1182,23 @@ function dropBall() {
   dropping = true;
   document.getElementById('drop-btn').disabled = true;
 
-  const seed = PM.newSeed();
-  const { path, slot } = PM.generatePath(rows, seed);
-
-  // Pick mystery slot — forced if cheat active
+  // Pick mystery slot + optionally force ball path
+  let path, slot;
   if (cheatActive) {
-    mysterySlotIdx = Math.floor((rows + 1) / 2); // center slot
+    mysterySlotIdx = Math.floor((rows + 1) / 2);
     cheatActive = false;
+    // Force path to land on mysterySlotIdx
+    path = Array(rows).fill(0);
+    for (let i = 0; i < mysterySlotIdx; i++) path[i] = 1;
+    // Shuffle for natural-looking trajectory
+    for (let i = path.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [path[i], path[j]] = [path[j], path[i]];
+    }
+    slot = mysterySlotIdx;
   } else {
+    const seed = PM.newSeed();
+    ({ path, slot } = PM.generatePath(rows, seed));
     mysterySlotIdx = PM.pickMysterySlot(rows);
   }
 
