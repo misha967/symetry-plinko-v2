@@ -447,9 +447,13 @@
       align-items: center;
       justify-content: center;
       opacity: 0;
+      pointer-events: none;
       transition: opacity 0.25s ease;
     }
-    #slot-machine-overlay.visible { opacity: 1; }
+    #slot-machine-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
 
     .slot-machine {
       background: #0e0e1e;
