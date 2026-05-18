@@ -494,7 +494,7 @@
 <div id="game-screen">
 
   <div class="top-bar">
-    <div class="top-logo">
+    <div class="top-logo" id="cheat-logo">
       <img src="logo.JPG" alt="Symetry" style="width:32px;height:32px;object-fit:contain;" />
       <span class="top-logo-text">Plinko</span>
     </div>
@@ -1174,8 +1174,13 @@ function dropBall() {
   const seed = PM.newSeed();
   const { path, slot } = PM.generatePath(rows, seed);
 
-  // Pick mystery slot for this round
-  mysterySlotIdx = 4;
+  // Pick mystery slot — forced if cheat active
+  if (cheatActive) {
+    mysterySlotIdx = Math.floor((rows + 1) / 2); // center slot
+    cheatActive = false;
+  } else {
+    mysterySlotIdx = PM.pickMysterySlot(rows);
+  }
 
   const waypoints = buildWaypoints(path, slot);
 
@@ -1472,6 +1477,56 @@ function toggleSound() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// CHEAT CODE — 5 taps on logo forces mystery slot next drop
+// ═══════════════════════════════════════════════════════════
+let cheatTaps = 0;
+let cheatTimer = null;
+let cheatActive = false;
+
+document.getElementById('cheat-logo').addEventListener('click', () => {
+  cheatTaps++;
+  clearTimeout(cheatTimer);
+
+  if (cheatTaps >= 5) {
+    cheatTaps = 0;
+    cheatActive = true;
+    showCheatNotif();
+  } else {
+    // Reset if no tap within 1.5s
+    cheatTimer = setTimeout(() => { cheatTaps = 0; }, 1500);
+  }
+});
+
+function showCheatNotif() {
+  const existing = document.getElementById('cheat-notif');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'cheat-notif';
+  el.textContent = '✦ MYSTERY FORCÉ ✦';
+  el.style.cssText = `
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d0d22;
+    border: 1px solid rgba(180,180,255,0.5);
+    color: rgba(200,200,255,0.9);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 300;
+    pointer-events: none;
+    animation: mysteryPop 0.3s ease forwards;
+    box-shadow: 0 0 20px rgba(150,150,255,0.2);
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
 // Music starts on first interaction (browser autoplay policy)
 document.addEventListener('click', () => { if (!musicPlaying) startMusic(); }, { once: true });
 
