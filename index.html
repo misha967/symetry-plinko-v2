@@ -1335,13 +1335,17 @@ function showBigWin(mult, amount) {
 // GAME LOGIC
 // ═══════════════════════════════════════════════════════════
 function dropBall() {
-  // If board not ready yet (mobile), reinit and retry
+  // If board not ready yet, reinit synchronously
   if (board.slots.length === 0 || board.colW === 0) {
     if (canvas.offsetWidth > 0) {
       initCanvas(); initBoard(); resetCanvas();
     } else {
-      // Canvas not laid out yet — retry in next frame
-      requestAnimationFrame(dropBall);
+      // Board truly not ready — show message and abort
+      document.getElementById('last-result').textContent = 'Chargement...';
+      setTimeout(() => {
+        initCanvas(); initBoard(); resetCanvas();
+        document.getElementById('last-result').textContent = '';
+      }, 300);
       return;
     }
   }
@@ -1728,6 +1732,9 @@ function showCheatNotif() {
 document.addEventListener('click', () => { if (!musicPlaying) startMusic(); }, { once: true });
 
 updateBalanceUI();
+// Ensure clean state on load
+dropping = false;
+document.getElementById('drop-btn').disabled = false;
 </script>
 </body>
 </html>
