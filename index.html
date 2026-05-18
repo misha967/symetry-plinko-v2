@@ -437,39 +437,117 @@
     .bw-big { border-color: #888; }
     .bw-nice { border-color: #333; }
 
-    /* ══ MYSTERY SLOT REVEAL ════════════════════════════════ */
-    .mystery-reveal {
+    /* ══ SLOT MACHINE ════════════════════════════════════════ */
+    #slot-machine-overlay {
       position: fixed;
-      z-index: 150;
-      pointer-events: none;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 250;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    #slot-machine-overlay.visible { opacity: 1; }
+
+    .slot-machine {
+      background: #0e0e1e;
+      border: 1px solid #2a2a4a;
+      border-radius: 20px;
+      padding: 28px 32px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      animation: mysteryPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+      gap: 20px;
+      box-shadow: 0 0 60px rgba(150,150,255,0.12);
+      min-width: 280px;
     }
-    @keyframes mysteryPop {
-      0%   { transform: scale(0.5) translateY(10px); opacity: 0; }
-      100% { transform: scale(1)   translateY(0);    opacity: 1; }
-    }
-    .mystery-reveal.fade-out {
-      animation: mysteryFade 0.4s ease forwards;
-    }
-    @keyframes mysteryFade {
-      to { opacity: 0; transform: translateY(-20px) scale(0.9); }
-    }
-    .mystery-label {
-      font-size: 0.55rem;
-      letter-spacing: 0.25em;
-      color: #aaa;
+    .slot-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.1rem;
+      font-weight: 300;
+      letter-spacing: 0.4em;
+      color: var(--silver);
       text-transform: uppercase;
     }
-    .mystery-mult {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 2.2rem;
-      font-weight: 600;
-      line-height: 1;
+    .slot-reels {
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
+    .slot-reel-wrap {
+      width: 72px;
+      height: 72px;
+      background: #080814;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    .slot-reel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: absolute;
+      width: 100%;
+      transition: none;
+    }
+    .slot-reel-cell {
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      flex-shrink: 0;
+    }
+    /* Shine overlay on reel */
+    .slot-reel-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(14,14,30,0.7) 0%,
+        transparent 35%,
+        transparent 65%,
+        rgba(14,14,30,0.7) 100%
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+    /* Center line */
+    .slot-reel-wrap::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0; right: 0;
+      height: 1px;
+      background: rgba(180,180,255,0.2);
+      z-index: 3;
+      transform: translateY(-36px);
+    }
+    .slot-divider {
+      color: #2a2a4a;
+      font-size: 1.2rem;
+    }
+    .slot-result {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 0.05em;
+      min-height: 2rem;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .slot-result.visible { opacity: 1; }
+    .slot-result.jackpot { color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.5); }
+    .slot-result.great   { color: #ffffff; }
+    .slot-result.ok      { color: var(--silver); }
+    .slot-result.bad     { color: #666; }
   </style>
 </head>
 <body>
@@ -571,6 +649,21 @@
       <div id="last-result"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- ══ SLOT MACHINE OVERLAY ══ -->
+<div id="slot-machine-overlay">
+  <div class="slot-machine">
+    <div class="slot-title">Mystery</div>
+    <div class="slot-reels">
+      <div class="slot-reel-wrap" id="reel-0"><div class="slot-reel" id="reel-strip-0"></div></div>
+      <div class="slot-divider">|</div>
+      <div class="slot-reel-wrap" id="reel-1"><div class="slot-reel" id="reel-strip-1"></div></div>
+      <div class="slot-divider">|</div>
+      <div class="slot-reel-wrap" id="reel-2"><div class="slot-reel" id="reel-strip-2"></div></div>
+    </div>
+    <div class="slot-result" id="slot-result"></div>
   </div>
 </div>
 
@@ -1032,18 +1125,25 @@ function getPegPos(row, col) {
 function onBallLanded(b) {
   const slot = board.slots[b.slot];
   const isMystery = (b.slot === mysterySlotIdx);
-  let mult = slot.mult;
+  const baseMult = slot.mult;
 
-  // Mystery reveal
-  if (isMystery) {
-    const revealed = PM.revealMysterySlot(mult);
-    showMysteryReveal(slot, mult, revealed);
-    mult = revealed;
-  }
-
-  // Reset mystery slot for next round
+  // Reset mystery slot
   mysterySlotIdx = -1;
 
+  if (isMystery) {
+    // Pause drop button during slot machine
+    dropping = true;
+    document.getElementById('drop-btn').disabled = true;
+
+    showMysteryReveal(slot, baseMult, (revealedMult) => {
+      applyResult(b, revealedMult, true);
+    });
+  } else {
+    applyResult(b, baseMult, false);
+  }
+}
+
+function applyResult(b, mult, isMystery) {
   const win    = parseFloat((b.bet * mult).toFixed(2));
   const profit = parseFloat((win - b.bet).toFixed(2));
 
@@ -1084,49 +1184,126 @@ function onBallLanded(b) {
   if (balls.filter(b => !b.done).length === 0) animRunning = false;
 
   if (autoOn) {
-    autoTimer = setTimeout(() => { if (autoOn) dropBall(); }, isMystery ? 1200 : 600);
+    autoTimer = setTimeout(() => { if (autoOn) dropBall(); }, isMystery ? 600 : 600);
   }
 }
 
-function showMysteryReveal(slot, baseMult, revealedMult) {
-  const existing = document.getElementById('mystery-reveal-popup');
-  if (existing) existing.remove();
+// ═══════════════════════════════════════════════════════════
+// SLOT MACHINE
+// ═══════════════════════════════════════════════════════════
+const SLOT_SYMBOLS = ['💎', '🔥', '⭐', '🌙'];
 
-  const el = document.createElement('div');
-  el.id = 'mystery-reveal-popup';
-  el.className = 'mystery-reveal';
-  el.style.cssText = `
-    position: fixed;
-    top: 40%;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 250;
-    pointer-events: none;
-    text-align: center;
-    background: #0d0d22;
-    border: 1px solid rgba(180,180,255,0.4);
-    border-radius: 14px;
-    padding: 16px 28px;
-    box-shadow: 0 0 30px rgba(150,150,255,0.15);
-  `;
+// Combinations → multiplier factor applied to base slot mult
+// RTP check: distribute combos by probability (4^3=64 outcomes)
+// 💎💎💎: 1/64 → ×2.5 | 🔥🔥🔥: 1/64 → ×2.0 | ⭐⭐⭐: 1/64 → ×1.5 | 🌙🌙🌙: 1/64 → ×0.8
+// any pair (C(4,1)*3*3=36/64) → ×1.2 | no match (4*3*2/64=24/64) → ×0.5 ... wait recalc:
+// all same: 4 outcomes → ×avg(2.5+2.0+1.5+0.8)/4 = 1.7 → weighted 4/64*1.7 = 0.106
+// two same: 64 - 4(all same) - 24(all diff) = 36 → ×1.2 → 36/64*1.2 = 0.675
+// all diff: 4*3*2=24 → ×0.5 → 24/64*0.5 = 0.1875
+// total E = 0.106 + 0.675 + 0.1875 = 0.9685 ≈ 0.97 close to 1.0 ✓ (tiny house edge on mystery)
 
-  const factor = revealedMult / baseMult;
-  const color  = factor >= 2 ? '#ffd700' : factor >= 1.5 ? '#ffffff' : factor >= 1 ? '#c8c8c8' : '#666';
-  const label  = factor >= 2 ? '🔥 JACKPOT ✦' : factor >= 1.5 ? '✦ LUCKY ✦' : factor >= 1 ? '✦ MYSTERY ✦' : '✦ MYSTERY ✦';
+function getSlotResult(s0, s1, s2) {
+  if (s0 === s1 && s1 === s2) {
+    if (s0 === '💎') return { factor: 2.5, label: '💎 JACKPOT 💎', tier: 'jackpot' };
+    if (s0 === '🔥') return { factor: 2.0, label: '🔥 ON FIRE 🔥', tier: 'great' };
+    if (s0 === '⭐') return { factor: 1.5, label: '⭐ LUCKY ⭐',   tier: 'great' };
+    if (s0 === '🌙') return { factor: 0.8, label: '🌙 NIGHT 🌙',  tier: 'bad'   };
+  }
+  const hasPair = s0===s1 || s1===s2 || s0===s2;
+  if (hasPair) return { factor: 1.2, label: 'PAIR  ×1.2', tier: 'ok' };
+  return           { factor: 0.5, label: 'NO MATCH  ×0.5', tier: 'bad' };
+}
 
-  el.innerHTML = `
-    <div class="mystery-label" style="font-size:0.6rem;letter-spacing:0.25em;color:#aaa;text-transform:uppercase;margin-bottom:6px;">${label}</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:2.6rem;font-weight:600;color:${color};line-height:1;">×${revealedMult.toFixed(2)}</div>
-    <div style="font-family:'Space Mono',monospace;font-size:0.7rem;color:#666;margin-top:4px;letter-spacing:0.1em;">base ×${baseMult.toFixed(2)}</div>
-  `;
-  document.body.appendChild(el);
+function spinSlotMachine(baseMult, onDone) {
+  const overlay = document.getElementById('slot-machine-overlay');
+  overlay.classList.add('visible');
 
+  // Pick the final symbols (weighted toward better outcomes)
+  const r = Math.random();
+  let s0, s1, s2;
+  if (r < 0.06) {
+    // All same — pick which one weighted
+    const sym = Math.random() < 0.15 ? '💎' : Math.random() < 0.25 ? '🔥' : Math.random() < 0.4 ? '⭐' : '🌙';
+    s0 = s1 = s2 = sym;
+  } else if (r < 0.62) {
+    // Pair
+    const sym = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+    const other = SLOT_SYMBOLS.filter(s => s !== sym)[Math.floor(Math.random() * 3)];
+    const pos = Math.floor(Math.random() * 3);
+    const arr = [sym, sym, other];
+    if (pos === 0) { s0=other; s1=sym; s2=sym; }
+    else if (pos === 1) { s0=sym; s1=other; s2=sym; }
+    else { s0=sym; s1=sym; s2=other; }
+  } else {
+    // All different
+    const shuffled = [...SLOT_SYMBOLS].sort(() => Math.random()-0.5);
+    s0=shuffled[0]; s1=shuffled[1]; s2=shuffled[2];
+  }
+
+  const finals = [s0, s1, s2];
+  const result = getSlotResult(s0, s1, s2);
+  const revealedMult = parseFloat((baseMult * result.factor).toFixed(2));
+
+  // Build reel strips — lots of symbols then final
+  const ROWS = 16; // symbols above final
+  [0,1,2].forEach(ri => {
+    const strip = document.getElementById(`reel-strip-${ri}`);
+    strip.innerHTML = '';
+    strip.style.transition = 'none';
+    strip.style.top = '0px';
+    for (let i = 0; i < ROWS; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'slot-reel-cell';
+      cell.textContent = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+      strip.appendChild(cell);
+    }
+    // Final symbol
+    const finalCell = document.createElement('div');
+    finalCell.className = 'slot-reel-cell';
+    finalCell.textContent = finals[ri];
+    strip.appendChild(finalCell);
+  });
+
+  document.getElementById('slot-result').textContent = '';
+  document.getElementById('slot-result').className = 'slot-result';
+
+  // Spin each reel with staggered stop
+  const CELL_H = 72;
+  const spinDurations = [1200, 1700, 2200];
+
+  [0,1,2].forEach((ri, idx) => {
+    const strip = document.getElementById(`reel-strip-${ri}`);
+    const targetTop = -ROWS * CELL_H; // land on final cell
+
+    setTimeout(() => {
+      strip.style.transition = `top ${spinDurations[ri]}ms cubic-bezier(0.25,0.1,0.1,1)`;
+      strip.style.top = targetTop + 'px';
+      playPegSound();
+    }, idx * 180);
+  });
+
+  // After last reel stops
   setTimeout(() => {
-    el.style.transition = 'opacity 0.4s, transform 0.4s';
-    el.style.opacity = '0';
-    el.style.transform = 'translateX(-50%) translateY(-20px) scale(0.9)';
-    setTimeout(() => el.remove(), 450);
-  }, 2000);
+    // Show result
+    const resEl = document.getElementById('slot-result');
+    resEl.textContent = `×${revealedMult.toFixed(2)}  ${result.label}`;
+    resEl.className = `slot-result visible ${result.tier}`;
+    playSlotSound(revealedMult);
+
+    // Close after delay
+    setTimeout(() => {
+      overlay.classList.remove('visible');
+      setTimeout(() => {
+        document.getElementById('slot-result').className = 'slot-result';
+      }, 300);
+      onDone(revealedMult);
+    }, 1800);
+
+  }, 2200 + 500); // last reel + settle time
+}
+
+function showMysteryReveal(slot, baseMult, onDone) {
+  spinSlotMachine(baseMult, onDone);
 }
 
 function showBigWin(mult, amount) {
